@@ -12,7 +12,7 @@ hermes:
   provider_class: hermes_memory_gbrain.GbrainMemoryProvider
 config:
   - key: brain_dir
-    description: Path to the GBrain repository (e.g. ~/ppy-brain)
+    description: Path to the GBrain repository (e.g. ~/my-brain)
   - key: command
     description: Path to gbrain CLI binary
     default: gbrain

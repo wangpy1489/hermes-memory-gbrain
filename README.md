@@ -37,7 +37,7 @@ Create `~/.hermes/gbrain.json`:
 
 ```json
 {
-  "brain_dir": "~/ppy-brain",
+  "brain_dir": "~/my-brain",
   "command": "gbrain",
   "timeout": 30
 }

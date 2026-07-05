@@ -29,7 +29,7 @@ if [ ! -f "$CONFIG" ]; then
     echo "⚙️  No gbrain.json found. Creating template..."
     cat > "$CONFIG" << 'EOF'
 {
-  "brain_dir": "~/ppy-brain",
+  "brain_dir": "~/my-brain",
   "command": "gbrain",
   "timeout": 30
 }

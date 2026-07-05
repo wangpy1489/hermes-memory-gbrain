@@ -306,7 +306,7 @@ class GbrainMemoryProvider(MemoryProvider):
         return [
             {
                 "key": "brain_dir",
-                "description": "Path to the GBrain repository (e.g. ~/ppy-brain)",
+                "description": "Path to the GBrain repository (e.g. ~/my-brain)",
                 "required": True,
             },
             {
