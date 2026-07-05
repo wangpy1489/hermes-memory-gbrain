@@ -1,0 +1,21 @@
+name: gbrain
+version: 0.1.0
+description: >
+  GBrain memory provider for Hermes Agent. Bridges Hermes' memory pipeline
+  to the GBrain knowledge base. Uses filesystem writes for structured pages
+  and gbrain CLI for semantic prefetch.
+author: wangpy1489
+license: MIT
+hermes:
+  type: memory-provider
+  min_version: "0.7.0"
+  provider_class: hermes_memory_gbrain.GbrainMemoryProvider
+config:
+  - key: brain_dir
+    description: Path to the GBrain repository (e.g. ~/ppy-brain)
+  - key: command
+    description: Path to gbrain CLI binary
+    default: gbrain
+  - key: timeout
+    description: Timeout for gbrain CLI calls (seconds)
+    default: 30
