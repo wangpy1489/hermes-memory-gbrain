@@ -29,13 +29,6 @@ class GbrainConfig:
         self.timeout = timeout
         self.raw = raw or {}
 
-    @property
-    def pages_dir(self) -> Optional[Path]:
-        """Directory where Hermes memory pages live."""
-        if not self.brain_dir:
-            return None
-        return self.brain_dir / "memory" / "hermes"
-
     def is_valid(self) -> bool:
         return self.brain_dir is not None and self.brain_dir.is_dir()
 

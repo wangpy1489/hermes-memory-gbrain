@@ -1,7 +1,9 @@
 """GBrain memory provider for Hermes Agent.
 
-Writes structured pages to the GBrain repository and uses
-gbrain CLI for semantic prefetch and explicit tool queries.
+Read-only: semantic prefetch via gbrain CLI + explicit tool queries.
+Does NOT mirror Hermes memory() writes — Hermes' built-in MEMORY.md
+is the canonical write path.  GBrain is treated as an external
+knowledge base to query, not a mirror to maintain.
 """
 
 from __future__ import annotations
@@ -9,10 +11,7 @@ from __future__ import annotations
 import json as _json
 import logging
 import subprocess
-import os
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 # Hermes runtime imports — stubs for standalone use (tests)
 try:
@@ -76,50 +75,6 @@ Active. Context from the GBrain knowledge base is auto-injected before each
 turn. Use gbrain_search for keyword lookups or gbrain_query for semantic
 questions when you need additional context beyond what's already injected."""
 
-# ---------------------------------------------------------------------------
-# Page templates
-# ---------------------------------------------------------------------------
-
-_USER_PAGE_TEMPLATE = """\
----
-type: concept
-title: Hermes 用户画像
-created: {created}
----
-
-# Hermes 用户画像
-
-## Compiled Truth
-<!-- 手动维护，Agent 不自动修改此区域 -->
-
-## Timeline
-"""
-
-_CONTEXT_PAGE_TEMPLATE = """\
----
-type: concept
-title: Hermes 上下文
-created: {created}
----
-
-# Hermes 上下文
-
-## Compiled Truth
-<!-- 手动维护，Agent 不自动修改此区域 -->
-
-## Timeline
-"""
-
-_PAGE_MAP = {
-    "user": ("user.md", _USER_PAGE_TEMPLATE),
-    "memory": ("context.md", _CONTEXT_PAGE_TEMPLATE),
-}
-
-_TIMELINE_ENTRY = """\
-### {timestamp} — memory {action}
-- **Target:** {target}
-- **Content:** {content}
-"""
 
 # ---------------------------------------------------------------------------
 # Provider
@@ -127,11 +82,10 @@ _TIMELINE_ENTRY = """\
 
 
 class GbrainMemoryProvider(MemoryProvider):
-    """Memory provider backed by a GBrain repository."""
+    """Read-only memory provider backed by a GBrain knowledge base."""
 
     def __init__(self):
-        self._config = None      # GbrainConfig
-        self._session_id = ""
+        self._config = None
         self._cron_skipped = False
 
     # ------------------------------------------------------------------
@@ -143,7 +97,7 @@ class GbrainMemoryProvider(MemoryProvider):
         return "gbrain"
 
     def is_available(self) -> bool:
-        """Check config exists and brain_dir is reachable."""
+        """Check config exists and gbrain CLI is reachable."""
         try:
             from .config import GbrainConfig
             cfg = GbrainConfig.from_file()
@@ -152,7 +106,7 @@ class GbrainMemoryProvider(MemoryProvider):
             return False
 
     def initialize(self, session_id: str, **kwargs) -> None:
-        """Load config and verify the brain directory."""
+        """Load config.  No writes, so no directory setup needed."""
         agent_context = kwargs.get("agent_context", "")
         platform = kwargs.get("platform", "cli")
         if agent_context in {"cron", "flush"} or platform == "cron":
@@ -162,7 +116,6 @@ class GbrainMemoryProvider(MemoryProvider):
         try:
             from .config import GbrainConfig
             self._config = GbrainConfig.from_file()
-            self._session_id = session_id
 
             if not self._config.is_valid():
                 logger.debug(
@@ -171,10 +124,6 @@ class GbrainMemoryProvider(MemoryProvider):
                     kwargs.get("hermes_home", "~/.hermes"),
                 )
                 return
-
-            # Ensure pages directory exists
-            if self._config.pages_dir:
-                self._config.pages_dir.mkdir(parents=True, exist_ok=True)
 
             logger.info(
                 "GBrain memory provider initialized (brain=%s, session=%s)",
@@ -236,42 +185,11 @@ class GbrainMemoryProvider(MemoryProvider):
             if not result or not result.strip():
                 return ""
 
-            # Wrap for clean context injection
             return f"## GBrain Context\n\n{result}"
 
         except Exception as e:
             logger.debug("GBrain prefetch failed: %s", e)
             return ""
-
-    def on_memory_write(
-        self,
-        action: str,
-        target: str,
-        content: str,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        """Append a Timeline entry to the appropriate page.
-
-        target='user'  → user.md
-        target='memory' → context.md
-        """
-        if not self._active():
-            return
-        if target not in _PAGE_MAP:
-            return
-
-        try:
-            filename, template = _PAGE_MAP[target]
-            page_path = self._config.pages_dir / filename
-            now = datetime.now(timezone.utc)
-
-            if page_path.exists():
-                self._append_timeline(page_path, action, target, content, now)
-            else:
-                self._create_page(page_path, template, action, target, content, now)
-
-        except Exception as e:
-            logger.debug("GBrain on_memory_write failed: %s", e)
 
     def get_config_schema(self) -> List[Dict[str, Any]]:
         return [
@@ -333,50 +251,6 @@ class GbrainMemoryProvider(MemoryProvider):
         except Exception as e:
             logger.warning("gbrain %s error: %s", args[0], e)
             return ""
-
-    def _create_page(
-        self,
-        path: Path,
-        template: str,
-        action: str,
-        target: str,
-        content: str,
-        now: datetime,
-    ) -> None:
-        """Create a new page with frontmatter + initial Timeline entry."""
-        created = now.isoformat()
-        page = template.format(created=created)
-        page += _TIMELINE_ENTRY.format(
-            timestamp=now.isoformat(),
-            action=action,
-            target=target,
-            content=content,
-        )
-        path.write_text(page, encoding="utf-8")
-
-    def _append_timeline(
-        self,
-        path: Path,
-        action: str,
-        target: str,
-        content: str,
-        now: datetime,
-    ) -> None:
-        """Append a Timeline entry to an existing page."""
-        entry = _TIMELINE_ENTRY.format(
-            timestamp=now.isoformat(),
-            action=action,
-            target=target,
-            content=content,
-        )
-        self._append_raw(path, entry)
-
-    def _append_raw(self, path: Path, text: str) -> None:
-        """Append raw text to a file, ensuring trailing newline."""
-        existing = path.read_text(encoding="utf-8")
-        if not existing.endswith("\n"):
-            existing += "\n"
-        path.write_text(existing + text + "\n", encoding="utf-8")
 
     @staticmethod
     def _is_trivial_prompt(query: str) -> bool:

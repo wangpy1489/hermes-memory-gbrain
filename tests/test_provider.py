@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -31,15 +30,6 @@ class TestGbrainConfig:
         cfg = GbrainConfig.from_file(config_path)
         assert cfg.is_valid()
         assert cfg.brain_dir == brain
-
-    def test_pages_dir(self, tmp_path):
-        brain = tmp_path / "brain"
-        brain.mkdir()
-        config_path = tmp_path / "gbrain.json"
-        config_path.write_text(json.dumps({"brain_dir": str(brain)}))
-
-        cfg = GbrainConfig.from_file(config_path)
-        assert cfg.pages_dir == brain / "memory" / "hermes"
 
     def test_expands_tilde(self, tmp_path, monkeypatch):
         brain = tmp_path / "brain"
@@ -122,81 +112,6 @@ class TestGbrainProvider:
         data = json.loads(result)
         assert data["success"] is False
 
-
-# ---------------------------------------------------------------------------
-# Timeline write tests
-# ---------------------------------------------------------------------------
-
-class TestTimelineWrite:
-
-    def test_creates_new_user_page(self, provider_with_brain):
-        provider_with_brain.on_memory_write(
-            "add", "user", "用户偏好 Python"
-        )
-        page = provider_with_brain._config.pages_dir / "user.md"
-        assert page.exists()
-        content = page.read_text()
-        assert "Hermes 用户画像" in content
-        assert "## Compiled Truth" in content
-        assert "## Timeline" in content
-        assert "用户偏好 Python" in content
-
-    def test_creates_new_context_page(self, provider_with_brain):
-        provider_with_brain.on_memory_write(
-            "add", "memory", "PostgreSQL 17, Python 3.11"
-        )
-        page = provider_with_brain._config.pages_dir / "context.md"
-        assert page.exists()
-        content = page.read_text()
-        assert "Hermes 上下文" in content
-        assert "PostgreSQL 17" in content
-
-    def test_appends_to_existing_page(self, provider_with_brain):
-        provider_with_brain.on_memory_write("add", "user", "第一条")
-        provider_with_brain.on_memory_write("add", "user", "第二条")
-
-        page = provider_with_brain._config.pages_dir / "user.md"
-        content = page.read_text()
-        assert "第一条" in content
-        assert "第二条" in content
-        # Timeline should have two entries
-        assert content.count("memory add") == 2
-
-    def test_replace_action(self, provider_with_brain):
-        provider_with_brain.on_memory_write("replace", "user", "更新偏好")
-        page = provider_with_brain._config.pages_dir / "user.md"
-        assert "replace" in page.read_text()
-        assert "更新偏好" in page.read_text()
-
-    def test_remove_action(self, provider_with_brain):
-        provider_with_brain.on_memory_write("remove", "memory", "过时信息")
-        page = provider_with_brain._config.pages_dir / "context.md"
-        assert "remove" in page.read_text()
-
-    def test_compiled_truth_untouched(self, provider_with_brain):
-        # Write initial page
-        provider_with_brain.on_memory_write("add", "user", "初始事实")
-
-        # Manually add something to Compiled Truth
-        page = provider_with_brain._config.pages_dir / "user.md"
-        content = page.read_text()
-        content = content.replace(
-            "<!-- 手动维护，Agent 不自动修改此区域 -->",
-            "<!-- 手动维护，Agent 不自动修改此区域 -->\n- 手动添加的判断",
-        )
-        page.write_text(content)
-
-        # Append more timeline entries
-        provider_with_brain.on_memory_write("add", "user", "新事实")
-
-        # Compiled Truth should still have manual content
-        final = page.read_text()
-        assert "手动添加的判断" in final
-
-    def test_skips_unknown_target(self, provider_with_brain):
-        provider_with_brain.on_memory_write("add", "unknown", "不应出现")
-        page = provider_with_brain._config.pages_dir / "unknown"
-        assert not page.exists() or "user.md"  # at least user.md wasn't created from this
 
 # ---------------------------------------------------------------------------
 # Trivial prompt tests
