@@ -198,15 +198,6 @@ class TestTimelineWrite:
         page = provider_with_brain._config.pages_dir / "unknown"
         assert not page.exists() or "user.md"  # at least user.md wasn't created from this
 
-    def test_on_session_end(self, provider_with_brain):
-        provider_with_brain.on_session_end([{}, {}])
-        page = provider_with_brain._config.pages_dir / "context.md"
-        assert page.exists()
-        content = page.read_text()
-        assert "session end" in content
-        assert "test-session" in content
-
-
 # ---------------------------------------------------------------------------
 # Trivial prompt tests
 # ---------------------------------------------------------------------------

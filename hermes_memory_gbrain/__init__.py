@@ -273,35 +273,6 @@ class GbrainMemoryProvider(MemoryProvider):
         except Exception as e:
             logger.debug("GBrain on_memory_write failed: %s", e)
 
-    def on_session_end(self, messages: List[Dict[str, Any]]) -> None:
-        """Note session end in the Timeline."""
-        if not self._active():
-            return
-        try:
-            now = datetime.now(timezone.utc)
-            page_path = self._config.pages_dir / "context.md"
-
-            if not page_path.exists():
-                # Create page if it doesn't exist yet
-                created = now.isoformat()
-                page = _CONTEXT_PAGE_TEMPLATE.format(created=created)
-                page += (
-                    f"### {now.isoformat()} — session end\n"
-                    f"- **Session:** {self._session_id}\n"
-                    f"- **Messages:** {len(messages)}\n"
-                )
-                page_path.write_text(page, encoding="utf-8")
-            else:
-                entry = (
-                    f"### {now.isoformat()} — session end\n"
-                    f"- **Session:** {self._session_id}\n"
-                    f"- **Messages:** {len(messages)}\n"
-                )
-                self._append_raw(page_path, entry)
-
-        except Exception as e:
-            logger.debug("GBrain on_session_end failed: %s", e)
-
     def get_config_schema(self) -> List[Dict[str, Any]]:
         return [
             {
